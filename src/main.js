@@ -1,130 +1,148 @@
+// Імпортуємо бібліотеку iziToast для повідомлень
 import iziToast from 'izitoast';
 import 'izitoast/dist/css/iziToast.min.css';
+
+// Імпортуємо функцію запиту до Pixabay API
 import { getImagesByQuery } from './js/pixabay-api';
+
+// Імпортуємо утиліти для галереї, лоадера і кнопок
 import {
-  ref,
   createGallery,
   showLoader,
-  clearGallery,
   hideLoader,
-  showLoadMoreButton,
-  hideLoadMoreButton,
+  clearGallery,
+  showLoadMoreBtn,
+  hideLoadMoreBtn,
 } from './js/render-functions';
 
-hideLoader();
+// DOM-посилання
+const form = document.querySelector('.form');
+const input = document.querySelector('[name="search-text"]');
+const galleryElem = document.querySelector('.gallery');
+const loaderElem = document.querySelector('.loader');
+const fetchPostsBtn = document.querySelector('.js-load-more');
+const showErrorMessage = document.querySelector('.js-error-message');
+const showLoadingMessage = document.querySelector('.js-loading-message');
+
+// Стан
 let page = 1;
-let inputValue = null;
-const limit = 15;
+let searchQuery = '';
+let totalHits = 0;
 
-ref.form.addEventListener('submit', formSbmtHandler);
+// Слухачі подій
+form.addEventListener('submit', onSubmitForm);
+fetchPostsBtn.addEventListener('click', onLoadMore);
 
-async function formSbmtHandler(e) {
-  e.preventDefault();
-  const input = e.currentTarget.elements.search.value.trim();
-  inputValue = input;
+// Обробник події надсилання форми
+async function onSubmitForm(event) {
+  event.preventDefault();
+
+  searchQuery = input.value.trim();
   page = 1;
+  totalHits = 0;
 
-  if (inputValue === '') {
-    iziToast.warning({
-      message: 'The input is empty',
+  clearGallery(galleryElem);
+  hideLoadMoreBtn(fetchPostsBtn);
+  showErrorMessage.classList.add('is-hidden');
+  showLoader(loaderElem);
+
+  if (!searchQuery) {
+    hideLoader(loaderElem);
+    return iziToast.error({
+      title: 'Caution',
+      message: 'Please enter a search query.',
       position: 'topRight',
+      timeout: 3000,
     });
-    ref.form.reset();
-    return;
   }
 
-  showLoader();
-  clearGallery();
-
   try {
-    const { hits, totalHits } = await getImagesByQuery(inputValue, page);
-    const totalPages = Math.ceil(totalHits / limit);
+    const data = await getImagesByQuery(searchQuery, page);
+    const images = data.hits;
+    totalHits = data.totalHits;
 
-    if (hits.length === 0) {
-      iziToast.warning({
-        message:
-          'Sorry, there are no images matching your search query. Please try again!',
+    if (images.length === 0) {
+      showErrorMessage.classList.remove('is-hidden');
+      return iziToast.error({
+        title: 'Caution',
+        message: 'Sorry, no images match your search query. Try again!',
         position: 'topRight',
-        color: 'red',
-      });
-      hideLoadMoreButton();
-      return;
-    } else {
-      iziToast.success({
-        message: `Images with ${inputValue} are found`,
-        position: 'topRight',
-        color: 'green',
+        timeout: 3000,
       });
     }
-    if (page >= totalPages) {
-      hideLoadMoreButton();
-    } else {
-      showLoadMoreButton();
-    }
 
-    createGallery(hits);
+    createGallery(images, galleryElem);
+
+    if (totalHits > 15) {
+      showLoadMoreBtn(fetchPostsBtn);
+    }
   } catch (error) {
-    iziToast.warning({
-      message: `${error}`,
+    iziToast.error({
+      title: 'Error',
+      message: 'Something went wrong. Please try again later.',
       position: 'topRight',
+      timeout: 3000,
     });
   } finally {
-    ref.form.reset();
-    hideLoader();
+    hideLoader(loaderElem);
+    form.reset();
   }
 }
 
-ref.loadBtn.addEventListener('click', onLoadBtnClick);
+// Обробник кнопки "Завантажити ще"
+async function onLoadMore(event) {
+  event.preventDefault();
+  page += 1;
 
-async function onLoadBtnClick() {
-  showLoader();
-  page++;
+  hideLoadMoreBtn(fetchPostsBtn);
+  showLoadingMessage.classList.remove('is-hidden');
 
   try {
-    const { hits, totalHits } = await getImagesByQuery(inputValue, page);
-    const totalPages = Math.ceil(totalHits / limit);
+    const data = await getImagesByQuery(searchQuery, page);
+    const images = data.hits;
 
-    if (page >= totalPages) {
-      iziToast.warning({
-        message:
-          'We are sorry, but you have reached the end of search results.',
+    if (images.length === 0) {
+      showErrorMessage.classList.remove('is-hidden');
+      return iziToast.error({
+        title: 'Caution',
+        message: "We're sorry, but you've reached the end of search results.",
         position: 'topRight',
-        color: 'red',
+        timeout: 3000,
       });
-      hideLoadMoreButton();
-      return;
+    }
+
+    createGallery(images, galleryElem);
+
+    const totalPages = Math.ceil(totalHits / 15);
+    if (page < totalPages) {
+      showLoadMoreBtn(fetchPostsBtn);
     } else {
-      iziToast.success({
-        message: `Images with ${inputValue} are found`,
+      iziToast.info({
+        title: 'Info',
+        message: "You've reached the end of search results.",
         position: 'topRight',
-        color: 'green',
+        timeout: 3000,
       });
     }
 
-    createGallery(hits);
+    // Прокручуємо до нових зображень
+    const { height: cardHeight } = document
+      .querySelector('.gallery')
+      .firstElementChild.getBoundingClientRect();
 
-    const card = document.querySelector('.gallery-item');
-    if (card) {
-      autoSkroll(card);
-    }
-    showLoadMoreButton();
-  } catch (error) {
-    iziToast.warning({
-      message: `${error}`,
-      position: 'topRight',
+    window.scrollBy({
+      top: cardHeight * 2,
+      behavior: 'smooth',
     });
+  } catch (error) {
+    iziToast.error({
+      title: 'Error',
+      message: 'Failed to load more images. Please try again.',
+      position: 'topRight',
+      timeout: 3000,
+    });
+    showErrorMessage.classList.remove('is-hidden');
   } finally {
-    ref.form.reset();
-
-    hideLoader();
+    showLoadingMessage.classList.add('is-hidden');
   }
-}
-
-function autoSkroll(card) {
-  const { height } = card.getBoundingClientRect();
-
-  window.scrollBy({
-    top: height * 2,
-    behavior: 'smooth',
-  });
 }
