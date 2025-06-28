@@ -38,8 +38,6 @@ async function formSbmtHandler(e) {
 
   try {
     const { hits, totalHits } = await getImagesByQuery(inputValue, page);
-    const totalPages = Math.ceil(totalHits / limit);
-
     if (hits.length === 0) {
       iziToast.warning({
         message:
@@ -49,20 +47,22 @@ async function formSbmtHandler(e) {
       });
       hideLoadMoreButton();
       return;
-    } else {
-      iziToast.success({
-        message: `Images with ${inputValue} are found`,
-        position: 'topRight',
-        color: 'green',
-      });
     }
+
+    createGallery(hits); // Moved before UI updates
+    const totalPages = Math.ceil(totalHits / limit);
+
+    iziToast.success({
+      message: `Images with ${inputValue} are found`,
+      position: 'topRight',
+      color: 'green',
+    });
+
     if (page >= totalPages) {
       hideLoadMoreButton();
     } else {
       showLoadMoreButton();
     }
-
-    createGallery(hits);
   } catch (error) {
     iziToast.warning({
       message: `${error}`,
@@ -84,6 +84,8 @@ async function onLoadBtnClick() {
     const { hits, totalHits } = await getImagesByQuery(inputValue, page);
     const totalPages = Math.ceil(totalHits / limit);
 
+    createGallery(hits); // Moved before return check
+
     if (page >= totalPages) {
       iziToast.warning({
         message:
@@ -92,30 +94,20 @@ async function onLoadBtnClick() {
         color: 'red',
       });
       hideLoadMoreButton();
-      return;
     } else {
-      iziToast.success({
-        message: `Images with ${inputValue} are found`,
-        position: 'topRight',
-        color: 'green',
-      });
+      showLoadMoreButton();
     }
-
-    createGallery(hits);
 
     const card = document.querySelector('.gallery-item');
     if (card) {
       autoSkroll(card);
     }
-    showLoadMoreButton();
   } catch (error) {
     iziToast.warning({
       message: `${error}`,
       position: 'topRight',
     });
   } finally {
-    ref.form.reset();
-
     hideLoader();
   }
 }
