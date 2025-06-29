@@ -35,6 +35,7 @@ async function formSbmtHandler(e) {
 
   showLoader();
   clearGallery();
+  hideLoadMoreButton(); // Hide button before new search
 
   try {
     const { hits, totalHits } = await getImagesByQuery(inputValue, page);
@@ -49,7 +50,7 @@ async function formSbmtHandler(e) {
       return;
     }
 
-    createGallery(hits); // Moved before UI updates
+    createGallery(hits);
     const totalPages = Math.ceil(totalHits / limit);
 
     iziToast.success({
@@ -84,7 +85,18 @@ async function onLoadBtnClick() {
     const { hits, totalHits } = await getImagesByQuery(inputValue, page);
     const totalPages = Math.ceil(totalHits / limit);
 
-    createGallery(hits); // Moved before return check
+    if (hits.length === 0) {
+      iziToast.warning({
+        message:
+          'We are sorry, but you have reached the end of search results.',
+        position: 'topRight',
+        color: 'red',
+      });
+      hideLoadMoreButton();
+      return;
+    }
+
+    createGallery(hits); // Moved after hits.length check
 
     if (page >= totalPages) {
       iziToast.warning({
